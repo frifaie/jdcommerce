@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -6,7 +7,13 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.views.generic import ListView, DetailView, View
 from .forms import CheckoutForm
-from .models import Item, Order, OrderItem, BillingAddress
+from .models import Item, Order, OrderItem, BillingAddress, Payment
+
+import stripe
+stripe.api_key = "sk_test_4eC39HqLyjWDarjtT1zdp7dc" #settings.STRIPE_SECRET_KEY
+
+# `source` is obtained with Stripe.js; see https://stripe.com/docs/payments/accept-a-payment-charges#web-create-token
+
 
 
 def products(request):
@@ -19,8 +26,10 @@ def products(request):
 class CheckoutView(View):
     def get(self, *args, **kwargs):
         form = CheckoutForm()
+        order = Order.objects.get(user=self.request.user, ordered=False)
         context = {
-            'form': form
+            'form': form,
+            'order': order
         }
         return render(self.request, "checkout.html", context)
 
@@ -47,12 +56,98 @@ class CheckoutView(View):
                 billing_address.save()
                 order.billing_address = billing_address
                 order.save()
-                return redirect("core:checkout")
-            messages.warning(self.request, "Failed checkout!")
-            return redirect("core:checkout")
+
+                if payment_option == 'S':
+                    return redirect("core:payment", payment_option='stripe')
+                elif payment_option == 'P':
+                    return redirect("core:payment", payment_option='paypal')
+                else:
+                    messages.warning(self.request, "Invalid payment option Selected!")
+                    return redirect("core:checkout")
+
         except ObjectDoesNotExist:
             messages.error(self.request, "You do not have an active order")
             return redirect("core:order-summary")
+
+
+class PaymentView(View):
+    def get(self, *args, **kwargs):
+        order = Order.objects.get(user=self.request.user, ordered=False)
+        context = {
+            'order': order
+        }
+        return render(self.request, "payment.html", context)
+
+    def post(self, *args, **kwargs):
+        order = Order.objects.get(user=self.request.user, ordered=False)
+        token = self.request.POST.get('stripeToken')
+        amount = int(order.get_total() * 100)  # convert to cents
+
+        try:
+            charge = stripe.Charge.create(
+                amount=amount,
+                currency="usd",
+                source=token
+            )
+
+            # payment
+            payment = Payment()
+            payment.stripe_charge_id = charge['id']
+            payment.user = self.request.user
+            payment.amount = order.get_total()
+            payment.save()
+
+            # assign payment to the order
+
+            order.ordered = True
+            order.payment = payment
+            order.save()
+
+            messages.success(self.request, "Yor order was successful.")
+            return redirect("/")
+
+        except stripe.error.CardError as e:
+            body = e.json_body
+            err = body.get('error', {})
+            messages.error(self.request, f"{err.get('message')}")
+            return redirect("core:order-summary")
+
+        except stripe.error.RateLimitError as e:
+            # Too many requests made to the API too quickly
+            messages.error(self.request, "Rate Limit Error")
+            return redirect("core:order-summary")
+
+        except stripe.error.InvalidRequestError as e:
+            # Invalid parameters were supplied to Stripe's API
+            messages.error(self.request, "Invalid Parameters")
+            return redirect("core:order-summary")
+
+        except stripe.error.AuthenticationError as e:
+            # Authentication with Stripe's API failed
+            # (maybe you changed API keys recently)
+            messages.error(self.request, "Not Authenticated")
+            return redirect("core:order-summary")
+
+        except stripe.error.APIConnectionError as e:
+            # Network communication with Stripe failed
+            messages.error(self.request, "API Connection Error")
+            return redirect("core:order-summary")
+
+        except stripe.error.StripeError as e:
+            # Display a very generic error to the user, and maybe send
+            # yourself an email
+            messages.error(self.request, "Something went wrong. You were not charged. Please try again!")
+            return redirect("core:order-summary")
+
+        except Exception as e:
+            # Something else happened, completely unrelated to Stripe
+            messages.error(self.request, "A serious Error occurred. We have been notified.")
+            return redirect("core:order-summary")
+
+
+
+
+
 
 
 
