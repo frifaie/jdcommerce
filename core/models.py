@@ -23,6 +23,7 @@ class Item (models.Model):
     label = models.CharField(choices=LABEL_CHOICES, max_length=1)
     slug = models.SlugField()
     description = models.TextField()
+    image = models.ImageField()
 
 
     def __str__(self):
@@ -75,6 +76,9 @@ class Order(models.Model):
     payment = models.ForeignKey(
         'Payment', on_delete=models.SET_NULL,
         blank=True, null=True)
+    coupon = models.ForeignKey(
+        'Coupon', on_delete=models.SET_NULL,
+        blank=True, null=True)
 
     def __str__(self):
         return self.user.username
@@ -83,6 +87,7 @@ class Order(models.Model):
         total = 0
         for order_item in self.items.all():
             total += order_item.get_final_price()
+        total -= self.coupon.amount
         return total
 
 class BillingAddress(models.Model):
@@ -105,3 +110,12 @@ class Payment(models.Model):
 
     def __str__(self):
         return self.user.username
+
+
+class Coupon(models.Model):
+    code = models.CharField(max_length=15)
+    amount = models.FloatField()
+
+    def __str__(self):
+        return self.code
+
