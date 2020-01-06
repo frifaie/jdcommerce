@@ -8,7 +8,7 @@ This repository is a Django e-commerce project by using a free ecommerce Bootstr
 2. Django-allauth
 3. Bootstrap
 
-###Steps:
+### Steps:
 
 1. [Create Django Project and All-Auth](../../tree/de13ce01bbf7e3a76a0adc24c35359ebaf32bd25/)
 2. [Models: item, orderitem, order](../../tree/f66185901ffdd2243339bf8750aa3ecbe839ef66/)
@@ -20,5 +20,7 @@ This repository is a Django e-commerce project by using a free ecommerce Bootstr
 8. [Checkout form](../../tree/707e7add736497d3841a16cf7a62884506ff689b/)
 9. [Stripe Payment](../../tree/c444dd9bfd7490fd565d175046001e93b62f21eb/)
 10. [Promo code](../../tree/a25281c7298662800e280db1fa9b9e26038ffb6a/)
+11. [Refund process](../../tree/23462da8fa9b9705488ab0f3f7a285db8831014d/)
+
 
 
